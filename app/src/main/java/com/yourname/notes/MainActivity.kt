@@ -15,49 +15,78 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        db = NoteDatabase.get(this)
 
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setBackgroundColor(0xFF030a06.toInt())
+        // Initialize database with error handling
+        try {
+            db = NoteDatabase.get(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Database error: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
+            return
         }
 
-        val recycler = RecyclerView(this).apply {
-            layoutManager = LinearLayoutManager(this@MainActivity)
+        // Create UI programmatically
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF030a06.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+            setPadding(32, 32, 32, 32)
         }
 
         val addBtn = Button(this).apply {
             text = "+ NEW NOTE"
             setTextColor(0xFF030a06.toInt())
             setBackgroundColor(0xFF00FF6A.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
+        val recycler = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,  // weight
+                1f  // take remaining space
+            )
+        }
+
+        layout.addView(addBtn)
+        layout.addView(recycler)
+        setContentView(layout)
+
+        // Setup adapter
         adapter = NoteAdapter(
             notes = emptyList(),
             onClick = { note ->
-                startActivity(
-                    Intent(this, AddEditNoteActivity::class.java)
-                        .putExtra("note_id", note.id)
-                )
+                val intent = Intent(this, AddEditNoteActivity::class.java)
+                intent.putExtra("note_id", note.id)
+                startActivity(intent)
             },
             onLongClick = { note ->
                 AlertDialog.Builder(this)
                     .setTitle("Delete '${note.title}'?")
                     .setPositiveButton("DELETE") { _, _ ->
                         lifecycleScope.launch {
-                            db.noteDao().delete(note)
-                            loadNotes()
+                            try {
+                                db.noteDao().delete(note)
+                                loadNotes()
+                                Toast.makeText(this@MainActivity, "Deleted", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(this@MainActivity, "Delete failed", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                     .setNegativeButton("CANCEL", null)
                     .show()
             }
         )
-
         recycler.adapter = adapter
-        layout.addView(addBtn)
-        layout.addView(recycler)
-        setContentView(layout)
 
         addBtn.setOnClickListener {
             startActivity(Intent(this, AddEditNoteActivity::class.java))
@@ -71,7 +100,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadNotes() {
         lifecycleScope.launch {
-            adapter.update(db.noteDao().getAll())
+            try {
+                val notes = db.noteDao().getAll()
+                adapter.update(notes)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this@MainActivity, "Failed to load notes", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }
