@@ -1,5 +1,5 @@
-*.zip
 build/
 .gradle/
 local.properties
 /gradle/lib/
+*.zip
